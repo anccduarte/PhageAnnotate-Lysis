@@ -139,12 +139,15 @@ class SeqMining:
                             if "product" in feature.qualifiers:
                                 product = feature.qualifiers["product"][0]
                                 # Ignorar features: 
-                                # 1. Caso se pretendam sequências positivas e o "product" não se encontra
-                                # nos termos introduzidos pelo utilizador
-                                # 2. Caso se pretendam sequências negativas e o "product" se encontre nos 
-                                # termos introduzidos ou seja ambíguo (p.e., "hypothetical protein")
+                                # 1. Caso se pretendam sequências positivas, e nenhum dos termos introduzidos
+                                # pelo utilizador se encontre em "product" ou caso o termo "not" se encontre 
+                                # no mesmo
+                                # 2. Caso se pretendam sequências negativas, e algum dos termos introduzidos
+                                # pelo utilizador se encontre em "product" ou caso a descrição de "product"
+                                # seja ambígua (p.e., "hypothetical protein")
                                 if not self.negatives:
                                     if all(term not in product for term in self.terms): continue
+                                    if "not" in product: continue
                                 else:
                                     terms = self.terms + ["hypothetical protein", "Phage protein", "unknown"]
                                     if any(term in product for term in terms): continue
