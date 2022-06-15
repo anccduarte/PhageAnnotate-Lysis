@@ -89,8 +89,14 @@ class SeqMining:
         ----------
         :param file: O nome do ficheiro fasta que se pretende processar
         """
+        # Criação de um novo ficheiro fasta (guardar sequências não repetidas)
+        if "(" not in fname: new_fname = f"{fname}_filt"
+        else:
+            pref, suff = fname.split("(")
+            new_fname = f"{pref}_filt({suff.split(')')[0]})"
+        file = open(f"{new_fname}.fasta", "w")
+        # Procura de sequências repetidas no ficheiro original e construção de dicionário de contagens
         records = SeqIO.parse(f"{fname}.fasta", format="fasta")
-        file = open(f"{fname}_filt.fasta", "w")
         nf, f, filt, products_dict = 0, 0, set(), {}
         for record in records:
             nf += 1
