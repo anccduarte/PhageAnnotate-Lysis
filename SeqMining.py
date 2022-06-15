@@ -3,7 +3,6 @@
 from Bio import Entrez, SeqIO, Seq
 from tqdm.auto import tqdm
 import os
-import re
 
 class SeqMining:
     
@@ -71,10 +70,7 @@ class SeqMining:
         valores dos parâmetros introduzidos pelo utilizador.
         """
         descrip = min(self.terms, key=len)
-        same = True
-        for term in self.terms:
-            if not re.findall(descrip, term): same = False
-        if not same: descrip = "protein"
+        if any(descrip not in term for term in self.terms): descrip = "protein"
         fname = f"txid{self.taxid}{'_negative'*self.negatives}_{descrip}s_{self.num_ids}"
         if os.path.exists(f"{fname}.fasta"):
             i = 1
@@ -100,17 +96,9 @@ class SeqMining:
             nf += 1
             description, seq = record.description, record.seq
             if seq not in filt:
-                product = description.split(" | ")[2].strip()
-                """
-                # Verificar se algum termo de pesquisa se encontra no nome do produto (para negativos)
-                found = False
-                if self.negatives:
-                    for term in self.terms:
-                        if re.findall(term, product): found = True
-                if found: continue
-                """
-                # Atualizar dicionário de contagens e adicionar sequência ao ficheiro fasta
                 f += 1
+                product = description.split(" | ")[2].strip()
+                # Atualizar dicionário de contagens e adicionar sequência ao ficheiro fasta
                 if product not in products_dict: products_dict[product] = 1
                 else: products_dict[product] += 1
                 filt.add(seq)
@@ -151,11 +139,9 @@ class SeqMining:
                                 # termos introduzidos ou seja ambíguo (p.e., "hypothetical protein")
                                 if not self.negatives:
                                     if all(term not in product for term in self.terms): continue
-                                    # if product not in self.terms: continue
                                 else:
                                     terms = self.terms + ["hypothetical protein", "Phage protein", "unknown"]
                                     if any(term in product for term in terms): continue
-                                    # if product in terms: continue
                                 # Adicionar sequência de DNA ao ficheiro fasta (feature não ignorada)
                                 fr, to = feature.location.start, feature.location.end
                                 seq = record.seq[fr:to]
