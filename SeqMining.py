@@ -36,8 +36,8 @@ class SeqMining:
         assert all(type(term) is str for term in terms), msg_terms_2
         # num_ids - assert type and value
         assert type(num_ids) is int, "ERRO: O parâmetro 'num_ids' deve ser do tipo 'int'."
-        msg_num_ids = "ERRO: O valor do parâmetro 'num_ids' deve estar contido em [0, 20000]."
-        assert num_ids > 0 and num_ids < 20000, msg_num_ids
+        msg_num_ids = "ERRO: O valor do parâmetro 'num_ids' deve estar contido em [1, 20000]."
+        assert num_ids > 0 and num_ids <= 20000, msg_num_ids
         # negatives - assert type and value
         assert type(negatives) is int, "ERRO: O parâmetro 'negatives' deve ser do tipo 'int'."
         assert negatives in [0,1], "ERRO: O parâmetro 'negatives' apenas toma os valores 0 e 1."
@@ -66,8 +66,7 @@ class SeqMining:
     
     def __get_fname(self):
         """
-        Retorna o nome do ficheiro fasta onde as sequências de DNA serão guardadas de acordo com os
-        valores dos parâmetros introduzidos pelo utilizador.
+        Retorna o nome do ficheiro fasta onde as sequências de DNA serão guardadas.
         """
         descrip = min(self.terms, key=len)
         if any(descrip not in term for term in self.terms): descrip = "protein"
@@ -80,10 +79,9 @@ class SeqMining:
     
     def __filter_fasta(self, fname: str) -> tuple:
         """
-        Retorna um tuplo contendo o número de sequências contidas no ficheiro cujo nome toma como
-        parâmetro, o número de sequências obtido após filtragem do mesmo (remoção de sequências repetidas
-        e de sequências cujo 'product' contenha pelo menos um dos termos de pesquisa), e um dicionário de
-        contagens de produtos. Ainda, cria um ficheiro fasta contendo as sequências não removidas.
+        Cria um novo ficheiro fasta contendo sequências não repetidas. Retorna um tuplo contendo o nome
+        do ficheiro criado, o número de sequências contidas no ficheiro original, o número de sequências
+        obtidas após filtragem do mesmo, e um dicionário de contagens de produtos.
         
         Parameters
         ----------
@@ -111,12 +109,12 @@ class SeqMining:
                 file.write(f">{description}\n{seq}\n\n")
         file.close()
         ord_dict = {k: v for k, v in sorted(products_dict.items(), key = lambda x: -x[1])}
-        return nf, f, ord_dict
+        return new_fname, nf, f, ord_dict
     
     def get_sequences(self) -> None:
         """
         Cria um ficheiro fasta contendo sequências relacionadas aos termos de pesquisa introduzidos pelo
-        utilizador. Com o auxílio do método __filter_fasta() cria outro ficheiro sem sequências repetidas.
+        utilizador. Com o auxílio do método __filter_fasta(), cria outro ficheiro sem sequências repetidas.
         """
         # Recolher IDs no NCBI
         idlist = self.__get_ids()
@@ -163,10 +161,9 @@ class SeqMining:
             handle.close()
         file.close()
         # Filtrar ficheiro fasta de modo a gerar novo ficheiro sem sequências repetidas
-        nf, f, products_dict = self.__filter_fasta(fname)
+        new_fname, nf, f, products_dict = self.__filter_fasta(fname)
         # Prints - número de sequências recolhidas e dicionário de contagens
-        filt_name = f"{fname}_filt.fasta"
-        print(f"Filtering removed {nf - f} sequences ({f} sequences remaining in '{filt_name}')")
+        print(f"Filtering removed {nf - f} sequences ({f} sequences remaining in '{new_fname}.fasta')")
         len_dict = len(products_dict)
         if len_dict > 20: products_dict = {k: v for k, v in list(products_dict.items())[:20]}
         print(f"Counts (after filtering): {products_dict}{' ...' if len_dict > 20 else ''}")
