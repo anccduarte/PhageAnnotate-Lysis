@@ -24,19 +24,20 @@ class SeqMining:
         :param negatives: Indica se se pretende a recolha de sequências positivas ou negativas
         """
         
-        # email - type type
+        # email - type type and value
         assert type(email) is str, "ERRO: O parâmetro 'email' deve ser do tipo 'str'."
-        assert email, "ERRO: O valor do parâmetro 'email' não é válido."
-        # taxid - assert type
+        assert email.strip(), "ERRO: O valor do parâmetro 'email' deve ter dimensão superior a 0."
+        # taxid - assert type and value
         assert type(taxid) is str, "ERRO: O parâmetro 'taxid' deve ser do tipo 'str'."
+        assert taxid.strip(), "ERRO: O valor do parâmetro 'taxid' deve ter dimensão superior a 0."
         assert taxid.isdigit(), "ERRO: Todos os caracteres de 'taxid' devem ser dígitos."
         # terms - assert type (including inner) and value
         msg_terms_1 = "ERRO: O parâmetro 'terms' deve ser do tipo 'list' ou 'tuple'."
         assert type(terms) is list or type(terms) is tuple, msg_terms_1
         msg_terms_2 = "ERRO: Todos os termos contidos em 'terms' devem ser do tipo 'str'."
         assert all(type(term) is str for term in terms), msg_terms_2
-        msg_terms_3 = "ERRO: Todos os termos contidos em 'terms' devem ter dimensão superior a 0."
-        assert all(term.strip() for term in terms), msg_terms_3
+        msg_terms_3 = "ERRO: Todos os termos contidos em 'terms' devem ter dimensão superior a 1."
+        assert all(len(term.strip()) > 1 for term in terms), msg_terms_3
         # num_ids - assert type and value
         assert type(num_ids) is int, "ERRO: O parâmetro 'num_ids' deve ser do tipo 'int'."
         msg_num_ids = "ERRO: O valor do parâmetro 'num_ids' deve estar contido em [1, 20000]."
@@ -47,9 +48,19 @@ class SeqMining:
         
         self.email = email
         self.taxid = taxid
-        self.terms = [" ".join(term.strip().split()) for term in terms]
+        self.terms = [" ".join(term.split()) for term in terms]
         self.num_ids = num_ids
         self.negatives = negatives
+        self.sci_name = self.__get_sci_name()
+       
+    def __get_sci_name(self) -> str:
+        """
+        Retorna o nome científico correspondente ao 'taxid' introduzido pelo utilizador.
+        """
+        Entrez.email = "pg45464@alunos.uminho.pt"
+        with Entrez.efetch(db='taxonomy', id=self.taxid, retmode='xml') as handle:
+            record = Entrez.read(handle, validate=False)
+        return record[0]["ScientificName"].split()[0]
         
     def __get_ids(self) -> list:
         """
@@ -60,14 +71,12 @@ class SeqMining:
         Entrez.email = self.email
         # idtype: by default, ESearch returns GI numbers in its output.
         # retmax: total number of UIDs from the retrieved set to be shown in the XML output.
-        handle = Entrez.esearch(db="nuccore", term=search, retmax=self.num_ids)
-        record = Entrez.read(handle)
+        with Entrez.esearch(db="nucleotide", term=search, retmax=self.num_ids) as handle:
+            record = Entrez.read(handle)
         # Lista de IDs encontrados para a expressão "search"
-        idlist = record["IdList"]
-        handle.close()
-        return idlist
+        return record["IdList"]
     
-    def __get_fname(self):
+    def __get_fname(self) -> str:
         """
         Retorna o nome do ficheiro fasta onde as sequências de DNA serão guardadas.
         """
@@ -84,8 +93,8 @@ class SeqMining:
     def __filter_fasta(self, fname: str) -> tuple:
         """
         Cria um novo ficheiro fasta contendo sequências não repetidas. Retorna um tuplo contendo o nome
-        do ficheiro criado, o número de sequências contidas no ficheiro original, o número de sequências
-        obtidas após filtragem do mesmo, e um dicionário de contagens de produtos.
+        do ficheiro criado, o número de sequências contidas no ficheiro original, e o número de sequências
+        obtidas após filtragem do mesmo.
         
         Parameters
         ----------
@@ -97,7 +106,7 @@ class SeqMining:
             pref, suff = fname.split("(")
             new_fname = f"{pref}_filt({suff.split(')')[0]})"
         file = open(f"{new_fname}.fasta", "w")
-        # Procura de sequências não repetidas no ficheiro original e construção de dicionário de contagens
+        # Procura de sequências não repetidas no ficheiro original e construção do dicionário de contagens
         records = SeqIO.parse(f"{fname}.fasta", format="fasta")
         nf, f, filt, products_dict = 0, 0, set(), {}
         for record in records:
@@ -105,15 +114,10 @@ class SeqMining:
             description, seq = record.description, record.seq
             if seq not in filt:
                 f += 1
-                product = description.split(" | ")[2].strip()
-                # Atualizar dicionário de contagens e adicionar sequência ao ficheiro fasta
-                if product not in products_dict: products_dict[product] = 1
-                else: products_dict[product] += 1
                 filt.add(seq)
                 file.write(f">{description}\n{seq}\n\n")
         file.close()
-        ord_dict = {k: v for k, v in sorted(products_dict.items(), key = lambda x: -x[1])}
-        return new_fname, nf, f, ord_dict
+        return new_fname, nf, f
     
     def get_sequences(self) -> None:
         """
@@ -128,46 +132,42 @@ class SeqMining:
         # Inspecionar todos os IDs recolhidos anteriormente
         for k in tqdm(idlist):
             Entrez.email = self.email
-            handle = Entrez.efetch(db="nuccore", id=k, rettype="gb", retmode="text")
-            record = SeqIO.read(handle, format="gb")
-            # Verificar se a lista record.annotations["taxonomy"] não é vazia
-            if record.annotations["taxonomy"]:
-                # Verificar se o organismo pertence ao taxon "Viruses"
-                if record.annotations["taxonomy"][0] == "Viruses":
-                    for feature in record.features:
-                        # Verificar se a feature corresponde a uma região codificante
-                        if feature.type == "CDS":
-                            # Verifcar se "product" é uma das keys do dicionário "feature.qualifiers"
-                            if "product" in feature.qualifiers:
-                                product = feature.qualifiers["product"][0]
-                                # Ignorar features: 
-                                # 1. Caso se pretendam sequências positivas, e nenhum dos termos introduzidos
-                                # pelo utilizador se encontre em "product" ou caso o termo "not" se encontre 
-                                # no mesmo
-                                # 2. Caso se pretendam sequências negativas, e algum dos termos introduzidos
-                                # pelo utilizador se encontre em "product" ou caso a descrição de "product"
-                                # seja ambígua (p.e., "hypothetical protein")
-                                if not self.negatives:
-                                    if all(term not in product for term in self.terms): continue
-                                    if "not" in product: continue
-                                else:
-                                    terms = self.terms + ["hypothetical protein", "Phage protein", "unknown"]
-                                    if any(term in product for term in terms): continue
-                                # Adicionar sequência de DNA ao ficheiro fasta (feature não ignorada)
-                                fr, to = feature.location.start, feature.location.end
-                                seq = record.seq[fr:to]
-                                if feature.location.strand == -1: # caso a sequência esteja na strand -1
-                                    seq_bio = Seq.Seq(seq)
-                                    rev_comp = seq_bio.reverse_complement()
-                                    seq = rev_comp
-                                file.write(f"> {record.id} | {record.annotations['source']} | {product}\n"
-                                           f"{seq}\n\n")
+            handle = Entrez.efetch(db="nucleotide", id=k, rettype="gb", retmode="text")
+            record = SeqIO.read(handle, format="gb") 
+            # Validar a record taxonomy através do "taxid" introduzido pelo utilizador
+            if self.sci_name in record.annotations["taxonomy"]:
+                # Verificar todas as features presentes no record
+                for feature in record.features:
+                    # Verificar se a feature corresponde a uma região codificante
+                    if feature.type == "CDS":
+                        # Verifcar se "product" é uma das keys do dicionário "feature.qualifiers"
+                        if "product" in feature.qualifiers:
+                            product = feature.qualifiers["product"][0]
+                            # Ignorar features: 
+                            # 1. Caso se pretendam sequências positivas, e nenhum dos termos introduzidos
+                            # pelo utilizador se encontre em "product" ou caso um dos termos presentes em
+                            # ["not", "non"] se encontre no mesmo
+                            # 2. Caso se pretendam sequências negativas, e algum dos termos introduzidos
+                            # pelo utilizador se encontre em "product" ou caso a descrição de "product"
+                            # seja ambígua (p.e., "hypothetical protein")
+                            if not self.negatives:
+                                if all(term not in product for term in self.terms): continue
+                                if any(term in product for term in ["not", "non"]): continue
+                            else:
+                                terms = self.terms + ["hypothetical protein", "Phage protein", "unknown"]
+                                if any(term in product for term in terms): continue
+                            # Adicionar sequência de DNA ao ficheiro fasta (feature não ignorada)
+                            fr, to = feature.location.start, feature.location.end
+                            seq = record.seq[fr:to]
+                            if feature.location.strand == -1: # caso a sequência esteja na strand -1
+                                seq_bio = Seq.Seq(seq)
+                                rev_comp = seq_bio.reverse_complement()
+                                seq = rev_comp
+                            file.write(f"> {record.id} | {record.annotations['source']} | {product}\n"
+                                       f"{seq}\n\n")
             handle.close()
         file.close()
         # Filtrar ficheiro fasta de modo a gerar novo ficheiro sem sequências repetidas
         new_fname, nf, f, products_dict = self.__filter_fasta(fname)
-        # Prints - número de sequências recolhidas e dicionário de contagens
+        # Prints - informação acerca das sequências recolhidas e dicionário de contagens
         print(f"Filtering removed {nf - f} sequences ({f} sequences remaining in '{new_fname}.fasta')")
-        len_dict = len(products_dict)
-        if len_dict > 20: products_dict = {k: v for k, v in list(products_dict.items())[:20]}
-        print(f"Counts (after filtering): {products_dict}{' ...' if len_dict > 20 else ''}")
