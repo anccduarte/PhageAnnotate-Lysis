@@ -26,14 +26,17 @@ class SeqMining:
         
         # email - type type
         assert type(email) is str, "ERRO: O parâmetro 'email' deve ser do tipo 'str'."
+        assert email, "ERRO: O valor do parâmetro 'email' não é válido."
         # taxid - assert type
         assert type(taxid) is str, "ERRO: O parâmetro 'taxid' deve ser do tipo 'str'."
         assert taxid.isdigit(), "ERRO: Todos os caracteres de 'taxid' devem ser dígitos."
-        # terms - assert type (including inner)
+        # terms - assert type (including inner) and value
         msg_terms_1 = "ERRO: O parâmetro 'terms' deve ser do tipo 'list' ou 'tuple'."
         assert type(terms) is list or type(terms) is tuple, msg_terms_1
         msg_terms_2 = "ERRO: Todos os termos contidos em 'terms' devem ser do tipo 'str'."
         assert all(type(term) is str for term in terms), msg_terms_2
+        msg_terms_3 = "ERRO: Todos os termos contidos em 'terms' devem ter dimensão superior a 0."
+        assert all(term.strip() for term in terms), msg_terms_3
         # num_ids - assert type and value
         assert type(num_ids) is int, "ERRO: O parâmetro 'num_ids' deve ser do tipo 'int'."
         msg_num_ids = "ERRO: O valor do parâmetro 'num_ids' deve estar contido em [1, 20000]."
@@ -44,7 +47,7 @@ class SeqMining:
         
         self.email = email
         self.taxid = taxid
-        self.terms = terms
+        self.terms = [" ".join(term.strip().split()) for term in terms]
         self.num_ids = num_ids
         self.negatives = negatives
         
@@ -70,6 +73,7 @@ class SeqMining:
         """
         descrip = min(self.terms, key=len)
         if any(descrip not in term for term in self.terms): descrip = "protein"
+        if len(descrip) > 1: descrip = "_".join(descrip.split())
         fname = f"txid{self.taxid}{'_negative'*self.negatives}_{descrip}s_{self.num_ids}"
         if os.path.exists(f"{fname}.fasta"):
             i = 1
@@ -93,7 +97,7 @@ class SeqMining:
             pref, suff = fname.split("(")
             new_fname = f"{pref}_filt({suff.split(')')[0]})"
         file = open(f"{new_fname}.fasta", "w")
-        # Procura de sequências repetidas no ficheiro original e construção de dicionário de contagens
+        # Procura de sequências não repetidas no ficheiro original e construção de dicionário de contagens
         records = SeqIO.parse(f"{fname}.fasta", format="fasta")
         nf, f, filt, products_dict = 0, 0, set(), {}
         for record in records:
