@@ -82,7 +82,7 @@ class SeqMining:
         """
         descrip = min(self.terms, key=len)
         if any(descrip not in term for term in self.terms): descrip = "protein"
-        if len(descrip) > 1: descrip = "_".join(descrip.split())
+        if len(descrip.split()) > 1: descrip = "_".join(descrip.split())
         fname = f"txid{self.taxid}{'_negative'*self.negatives}_{descrip}s_{self.num_ids}"
         if os.path.exists(f"{fname}.fasta"):
             i = 1
@@ -106,7 +106,7 @@ class SeqMining:
             pref, suff = fname.split("(")
             new_fname = f"{pref}_filt({suff.split(')')[0]})"
         file = open(f"{new_fname}.fasta", "w")
-        # Procura de sequências não repetidas no ficheiro original e construção do dicionário de contagens
+        # Procura de sequências não repetidas no ficheiro original
         records = SeqIO.parse(f"{fname}.fasta", format="fasta")
         nf, f, filt, products_dict = 0, 0, set(), {}
         for record in records:
@@ -134,7 +134,7 @@ class SeqMining:
             Entrez.email = self.email
             handle = Entrez.efetch(db="nucleotide", id=k, rettype="gb", retmode="text")
             record = SeqIO.read(handle, format="gb") 
-            # Validar a record taxonomy através do "taxid" introduzido pelo utilizador
+            # Validar a record taxonomy através do "sci_name" associado ao "taxid" introduzido
             if self.sci_name in record.annotations["taxonomy"]:
                 # Verificar todas as features presentes no record
                 for feature in record.features:
@@ -146,13 +146,13 @@ class SeqMining:
                             # Ignorar features: 
                             # 1. Caso se pretendam sequências positivas, e nenhum dos termos introduzidos
                             # pelo utilizador se encontre em "product" ou caso um dos termos presentes em
-                            # ["not", "non"] se encontre no mesmo
+                            # ["not", "non", "putative"] se encontre no mesmo
                             # 2. Caso se pretendam sequências negativas, e algum dos termos introduzidos
                             # pelo utilizador se encontre em "product" ou caso a descrição de "product"
                             # seja ambígua (p.e., "hypothetical protein")
                             if not self.negatives:
                                 if all(term not in product for term in self.terms): continue
-                                if any(term in product for term in ["not", "non"]): continue
+                                if any(term in product for term in ["not", "non", "putative"]): continue
                             else:
                                 terms = self.terms + ["hypothetical protein", "Phage protein", "unknown"]
                                 if any(term in product for term in terms): continue
@@ -161,13 +161,12 @@ class SeqMining:
                             seq = record.seq[fr:to]
                             if feature.location.strand == -1: # caso a sequência esteja na strand -1
                                 seq_bio = Seq.Seq(seq)
-                                rev_comp = seq_bio.reverse_complement()
-                                seq = rev_comp
+                                seq = seq_bio.reverse_complement()
                             file.write(f"> {record.id} | {record.annotations['source']} | {product}\n"
                                        f"{seq}\n\n")
             handle.close()
         file.close()
         # Filtrar ficheiro fasta de modo a gerar novo ficheiro sem sequências repetidas
-        new_fname, nf, f, products_dict = self.__filter_fasta(fname)
-        # Prints - informação acerca das sequências recolhidas e dicionário de contagens
+        new_fname, nf, f = self.__filter_fasta(fname)
+        # Informação acerca das sequências recolhidas e dicionário de contagens
         print(f"Filtering removed {nf - f} sequences ({f} sequences remaining in '{new_fname}.fasta')")
