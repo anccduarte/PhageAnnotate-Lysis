@@ -4,11 +4,15 @@ from Bio import Entrez, SeqIO, Seq
 from tqdm.auto import tqdm
 import os
 import re
+import warnings
+
+# Ignorar warnings do Biopython
+warnings.filterwarnings("ignore")
 
 class SeqMining:
     
     """
-    Permite a recolha de sequências na base de dados 'Nucleotide' do NCBI.
+    Permite a recolha de sequências de DNA na base de dados 'Nucleotide' do NCBI.
     """
     
     def __init__(self, email: str, taxid: str, terms: list, num_ids: int, negatives: int = 0) -> None:
@@ -85,7 +89,7 @@ class SeqMining:
         """
         Retorna o nome científico correspondente ao 'taxid' introduzido pelo utilizador.
         """
-        Entrez.email = "pg45464@alunos.uminho.pt"
+        Entrez.email = self.email
         with Entrez.efetch(db='taxonomy', id=self.taxid, retmode='xml') as handle:
             record = Entrez.read(handle)
         return record[0]["ScientificName"].split()[0]
@@ -173,8 +177,8 @@ class SeqMining:
                             product = feature.qualifiers["product"][0]
                             # Ignorar features: 
                             # 1. Caso se pretendam sequências positivas, e nenhum dos termos introduzidos
-                            # pelo utilizador se encontre em "product" ou caso algumum dos termos presentes 
-                            # em ["not", "non", "putative"] se encontre no mesmo
+                            # pelo utilizador se encontre em "product" ou caso algum dos termos presentes 
+                            # em ["not", "non"] se encontre no mesmo
                             # 2. Caso se pretendam sequências negativas, e algum dos termos introduzidos
                             # pelo utilizador se encontre em "product" ou caso a descrição de "product"
                             # seja ambígua (p.e., "hypothetical protein")
