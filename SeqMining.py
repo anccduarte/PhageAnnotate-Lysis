@@ -3,6 +3,7 @@
 from Bio import Entrez, SeqIO, Seq
 from tqdm.auto import tqdm
 import os
+import re
 
 class SeqMining:
     
@@ -24,49 +25,76 @@ class SeqMining:
         :param negatives: Indica se se pretende a recolha de sequências positivas ou negativas
         """
         
-        # email - type type and value
-        assert type(email) is str, "ERRO: O parâmetro 'email' deve ser do tipo 'str'."
-        assert email.strip(), "ERRO: O valor do parâmetro 'email' deve ter dimensão superior a 0."
+        # email - assert type and value
+        msg_email_1 = "O parâmetro 'email' deve ser do tipo 'str'."
+        if type(email) is not str: raise TypeError(msg_email_1)
+        msg_email_2 = "O endereço de email inserido não é válido."
+        if not SeqMining.__verify_email(email): raise ValueError(msg_email_2)
+        
         # taxid - assert type and value
-        assert type(taxid) is str, "ERRO: O parâmetro 'taxid' deve ser do tipo 'str'."
-        assert taxid.strip(), "ERRO: O valor do parâmetro 'taxid' deve ter dimensão superior a 0."
-        assert taxid.isdigit(), "ERRO: Todos os caracteres de 'taxid' devem ser dígitos."
+        msg_taxid_1 = "O parâmetro 'taxid' deve ser do tipo 'str'."
+        if type(taxid) is not str: raise TypeError(msg_taxid_1)
+        msg_taxid_2 = "O valor do parâmetro 'taxid' deve ter dimensão superior a 0."
+        if not taxid.strip(): raise ValueError(msg_taxid_2)
+        msg_taxid_3 = "Todos os caracteres de 'taxid' devem ser dígitos."
+        if not taxid.isdigit(): raise ValueError(msg_taxid_3)
+        
         # terms - assert type (including inner) and value
-        msg_terms_1 = "ERRO: O parâmetro 'terms' deve ser do tipo 'list' ou 'tuple'."
-        assert type(terms) is list or type(terms) is tuple, msg_terms_1
-        msg_terms_2 = "ERRO: Todos os termos contidos em 'terms' devem ser do tipo 'str'."
-        assert all(type(term) is str for term in terms), msg_terms_2
-        msg_terms_3 = "ERRO: Todos os termos contidos em 'terms' devem ter dimensão superior a 1."
-        assert all(len(term.strip()) > 1 for term in terms), msg_terms_3
+        msg_terms_1 = "O parâmetro 'terms' deve ser do tipo 'list'."
+        if type(terms) is not list: raise ValueError(msg_terms_1)
+        msg_terms_2 = "Todos os termos contidos em 'terms' devem ser do tipo 'str'."
+        if any(type(term) is not str for term in terms): raise TypeError(msg_terms_2)
+        msg_terms_3 = "Todos os termos contidos em 'terms' devem ter dimensão superior a 1."
+        if any(len(term.strip()) < 2 for term in terms): raise ValueError(msg_terms_3)
+        
         # num_ids - assert type and value
-        assert type(num_ids) is int, "ERRO: O parâmetro 'num_ids' deve ser do tipo 'int'."
-        msg_num_ids = "ERRO: O valor do parâmetro 'num_ids' deve estar contido em [1, 20000]."
-        assert num_ids > 0 and num_ids <= 20000, msg_num_ids
+        msg_num_ids_1 = "O parâmetro 'num_ids' deve ser do tipo 'int'."
+        if type(num_ids) is not int: raise TypeError(msg_num_ids_1)
+        msg_num_ids_2 = "O valor do parâmetro 'num_ids' deve estar contido em [1, 20000]."
+        if num_ids < 1 or num_ids > 20000: raise ValueError(msg_num_ids_2)
+        
         # negatives - assert type and value
-        assert type(negatives) is int, "ERRO: O parâmetro 'negatives' deve ser do tipo 'int'."
-        assert negatives in [0,1], "ERRO: O parâmetro 'negatives' apenas toma os valores 0 e 1."
+        msg_negatives_1 = "O parâmetro 'negatives' deve ser do tipo 'int'."
+        if type(negatives) is not int: raise TypeError(msg_negatives_1)
+        msg_negatives_2 = "O parâmetro 'negatives' apenas toma os valores 0 ou 1."
+        if negatives not in [0,1]: raise ValueError(msg_negatives_2)
         
         self.email = email
         self.taxid = taxid
         self.terms = [" ".join(term.split()) for term in terms]
         self.num_ids = num_ids
         self.negatives = negatives
-        self.sci_name = self.__get_sci_name()
-       
+        
+        try: self.sci_name = self.__get_sci_name()
+        except: raise ValueError(f"O identificador introduzido ('{taxid}') não se encontra atribuído.")
+        
+    @staticmethod
+    def __verify_email(email: str) -> str:
+        """
+        Verifica se o endereço de email introduzido pelo utilizador é ou não válido.
+        
+        Parameters
+        ----------
+        :param email: O endereço de email a validar
+        """
+        valid = "^[a-zA-Z0-9]+[-._]?[a-zA-Z0-9]+[@][a-zA-Z0-9]+[.]?[a-zA-Z0-9]+[.]\w{2,3}$"
+        verify = re.search(valid, email)
+        return True if verify else False
+    
     def __get_sci_name(self) -> str:
         """
         Retorna o nome científico correspondente ao 'taxid' introduzido pelo utilizador.
         """
         Entrez.email = "pg45464@alunos.uminho.pt"
         with Entrez.efetch(db='taxonomy', id=self.taxid, retmode='xml') as handle:
-            record = Entrez.read(handle, validate=False)
+            record = Entrez.read(handle)
         return record[0]["ScientificName"].split()[0]
         
     def __get_ids(self) -> list:
         """
         Retorna uma lista de IDs tendo por base os parâmetros introduzidos pelo utilizador.
         """
-        search = f"txid{self.taxid}[ORGN] AND {'NOT'*self.negatives}({' OR '.join(self.terms)})"
+        search = f"txid{self.taxid}[ORGN] {'NOT '*self.negatives}({' OR '.join(self.terms)})"
         print(f"NCBI search: {search}")
         Entrez.email = self.email
         # idtype: by default, ESearch returns GI numbers in its output.
@@ -106,7 +134,7 @@ class SeqMining:
             pref, suff = fname.split("(")
             new_fname = f"{pref}_filt({suff.split(')')[0]})"
         file = open(f"{new_fname}.fasta", "w")
-        # Procura de sequências não repetidas no ficheiro original
+        # Procura de sequências não repetidas no ficheiro fasta original
         records = SeqIO.parse(f"{fname}.fasta", format="fasta")
         nf, f, filt, products_dict = 0, 0, set(), {}
         for record in records:
@@ -145,14 +173,14 @@ class SeqMining:
                             product = feature.qualifiers["product"][0]
                             # Ignorar features: 
                             # 1. Caso se pretendam sequências positivas, e nenhum dos termos introduzidos
-                            # pelo utilizador se encontre em "product" ou caso um dos termos presentes em
-                            # ["not", "non", "putative"] se encontre no mesmo
+                            # pelo utilizador se encontre em "product" ou caso algumum dos termos presentes 
+                            # em ["not", "non", "putative"] se encontre no mesmo
                             # 2. Caso se pretendam sequências negativas, e algum dos termos introduzidos
                             # pelo utilizador se encontre em "product" ou caso a descrição de "product"
                             # seja ambígua (p.e., "hypothetical protein")
                             if not self.negatives:
                                 if all(term not in product for term in self.terms): continue
-                                if any(term in product for term in ["not", "non", "putative"]): continue
+                                if any(term in product for term in ["not", "non"]): continue # "putative"
                             else:
                                 terms = self.terms + ["hypothetical protein", "Phage protein", "unknown"]
                                 if any(term in product for term in terms): continue
