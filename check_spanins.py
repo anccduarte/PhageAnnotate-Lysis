@@ -25,7 +25,7 @@ db_seqs = set(seqs1_1 + seqs1_2 + seqs2)
 print(f"Number of sequences in DB: {len(db_seqs)}")
 
 # verificar sequências que se encontam em ambos os ficheiros (Excel e fasta)
-records = SeqIO.parse("txid10239_proteins_3000_filt.fasta", format="fasta")
+records = SeqIO.parse("txid28883_proteins_2500_filt.fasta", format="fasta")
 seqs, seqs_in = 0, 0
 for record in records:
     seqs += 1
