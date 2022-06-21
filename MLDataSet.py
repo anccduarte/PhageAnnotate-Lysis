@@ -59,7 +59,7 @@ class MLDataSet:
         self.ml_dataset = self.__build_dataset()
         
     @staticmethod
-    def __verify_email(email: str) -> str:
+    def __verify_email(email: str) -> bool:
         """
         Verifica se o endereço de email introduzido pelo utilizador é ou não válido.
         
@@ -246,6 +246,7 @@ class MLDataSet:
                 row += [label]
                 data_out.loc[idx] = row
                 idx += 1
+        data_out = data_out.loc[:, col_names]
         data_out.to_csv(f"{self.__get_fname()}.csv")
         return data_out
         
