@@ -35,15 +35,15 @@ class MLModel:
         
         Parameters
         ----------
-        :param model: O modelo pretendido ({"RF", "SVC", "ANN"})
+        :param model: O modelo pretendido ({"RF", "SVM", "ANN"})
         :param dataset: Um dataset contendo features e labels relativas a sequências de DNA
         """
         
         # model - assert type and value
         msg_model_1 = "O parâmetro 'model' deve ser do tipo 'str'."
         if type(model) is not str: raise TypeError(msg_model_1)
-        msg_model_2 = "O parâmetro 'model' apenas toma os valores 'RF', 'SVC' ou 'ANN'."
-        if model not in ["RF", "SVC", "ANN"]: raise ValueError(msg_model_2)
+        msg_model_2 = "O parâmetro 'model' apenas toma os valores {'RF', 'SVM', 'ANN'}."
+        if model not in ["RF", "SVM", "ANN"]: raise ValueError(msg_model_2)
         
         # dataset - assert type and value
         msg1 = "O parâmetro 'dataset' deve ser do tipo 'str'."
@@ -98,10 +98,10 @@ class MLModel:
         return x_train_scaled, x_test_scaled, np.ravel(y_train), np.ravel(y_test)
     
     """
-    def __get_feature_mask(self) -> np.array:
+    def __get_feature_mask(self, estimator) -> np.array:
         #Retorna uma máscara booleana indicando os índices das features a manter no modelo.
         x_train, x_test, y_train, y_test = self.ml_data
-        selector = SelectFromModel(estimator=DecisionTreeClassifier()) # RFECV(estimator)
+        selector = SelectFromModel(estimator=estimator) # RFECV(estimator)
         selector.fit(x_train, y_train)
         return selector.get_support() # selector.support_ if RFECV is used
     """
@@ -109,10 +109,6 @@ class MLModel:
     def __optimize_hyperparameters(self) -> dict:
         """
         Optimiza os hiperparâmetros do modelo de machine learning.
-        
-        Parameters
-        ----------
-        :param modelo: O modelo especificado pelo utilizador
         """
         # data
         x_train, x_test, y_train, y_test = self.ml_data
@@ -121,7 +117,7 @@ class MLModel:
             param_grid = {"max_features": ["sqrt", "log2"], "n_estimators": [50, 100, 150, 200],
                           "min_samples_split": [1, 2, 4], "min_samples_leaf": [1, 2, 4]}
             estimator = RandomForestClassifier()
-        elif self.model == "SVC":
+        elif self.model == "SVM":
             param_grid = {"C": [0.1, 1, 10, 20], "kernel": ["linear", "poly", "rbf", "sigmoid"],
                           "gamma": ["auto", "scale"]}
             estimator = SVC()
@@ -143,7 +139,7 @@ class MLModel:
         params = self.__optimize_hyperparameters()
         # obter o modelo de machine learning
         if self.model == "RF": estimator = RandomForestClassifier(**params)
-        elif self.model == "SVC": estimator = SVC(**params)
+        elif self.model == "SVM": estimator = SVC(**params)
         else: estimator = MLPClassifier(**params)
         return estimator
     
@@ -156,7 +152,7 @@ class MLModel:
         x_train, x_test, y_train, y_test = self.ml_data
         """
         # obter feature mask para a redução do número de features
-        self.mask = self.__get_feature_mask() # também é utilizado em self.predict_proteins()
+        self.mask = self.__get_feature_mask(estimator) # também é utilizado em self.predict_proteins()
         # redifinir self.ml_data de modo a otimizar os hiperparâmetros com o novo conjunto de features
         x_train, x_test = x_train[:,self.mask], x_test[:,self.mask]
         self.ml_data = x_train, x_test, y_train, y_test
@@ -171,7 +167,7 @@ class MLModel:
         recall = recall_score(y_test, y_pred, average="macro")
         print(f"METRICS ON TESTING DATA (USING '{self.model}')\nAccuracy: {accuracy*100:.2f}% | "
               f"Precision: {precision*100:.2f}% | Recall: {recall*100:.2f}%")
-        # returns a fitted estimator (RF, SVC ou ANN)
+        # returns a fitted estimator (RF, SVM ou ANN)
         return estimator
     
     @staticmethod
@@ -185,6 +181,20 @@ class MLModel:
         """
         valid = "^[a-zA-Z0-9]+[-._]?[a-zA-Z0-9]+[@][a-zA-Z0-9]+[.]?[a-zA-Z0-9]+[.]\w{2,3}$"
         verify = re.search(valid, email)
+        return True if verify else False
+    
+    @staticmethod
+    def __verify_file_name(file: str) -> bool:
+        """
+        Verifca se o nome do ficheiro contendo as sequências cuja função se pretende prever inicia com
+        'txid<num>'.
+        
+        Parameters
+        ----------
+        :param file: O nome do ficheiro que contém as sequências
+        """
+        valid = "^txid[0-9]+"
+        verify = re.search(valid, file)
         return True if verify else False
     
     def __get_fname(self) -> str:
@@ -214,8 +224,8 @@ class MLModel:
         # file assert type and value
         msg_file_1 = "O parâmetro 'file' deve ser do tipo 'str'."
         if type(file) is not str: raise TypeError(msg_file_1)
-        msg_file_2 = "O valor do parâmetro 'file' deve ter dimensão superior a 4."
-        if len(file.strip()) < 5: raise ValueError(msg_file_2)
+        msg_file_2 = "O nome do ficheiro 'file' deve começar com a expressão 'txid<num>'."
+        if not MLModel.__verify_file_name(file): raise ValueError(msg_file_2)
         
         # assert existance of file in cwd
         if not os.path.exists(file):
