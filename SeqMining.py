@@ -6,7 +6,7 @@ import os
 import re
 import warnings
 
-# Ignorar warnings do Biopython
+# Ignorar warnings do Biopython (SeqFeature related)
 warnings.filterwarnings("ignore")
 
 class SeqMining:
@@ -63,6 +63,7 @@ class SeqMining:
         msg_negatives_2 = "O parâmetro 'negatives' apenas toma os valores 0 ou 1."
         if negatives not in [0,1]: raise ValueError(msg_negatives_2)
         
+        # instance attributes
         self.email = email
         self.taxid = taxid
         self.terms = [" ".join(term.split()) for term in terms]
@@ -73,7 +74,7 @@ class SeqMining:
         except: raise ValueError(f"O identificador introduzido ('{taxid}') não se encontra atribuído.")
         
     @staticmethod
-    def __verify_email(email: str) -> str:
+    def __verify_email(email: str) -> bool:
         """
         Verifica se o endereço de email introduzido pelo utilizador é ou não válido.
         
