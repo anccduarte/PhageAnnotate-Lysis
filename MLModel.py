@@ -2,14 +2,13 @@
 
 from Bio import SeqIO
 from MLDataSet import MLDataSet
-from sklearn.ensemble import RandomForestClassifier
-#from sklearn.feature_selection import SelectFromModel # RFECV
+from sklearn.ensemble import RandomForestClassifier as RFC
+from sklearn.feature_selection import SelectFromModel # RFECV
 from sklearn.metrics import accuracy_score, precision_score, recall_score
 from sklearn.model_selection import GridSearchCV, train_test_split
-from sklearn.neural_network import MLPClassifier
+from sklearn.neural_network import MLPClassifier as MLPC
 from sklearn.preprocessing import StandardScaler
 from sklearn.svm import SVC
-#from sklearn.tree import DecisionTreeClassifier
 from typing import Union
 import numpy as np
 import os
@@ -62,7 +61,7 @@ class MLModel:
         self.ml_data = self.__scale_data()
         self.fitted_estimator = self.__build_model()
     
-    def __call__(self) -> Union[RandomForestClassifier, SVC, MLPClassifier]:
+    def __call__(self) -> Union[RFC, SVC, MLPC]:
         """
         Retorna um modelo de machine learning (especificado pelo utilizador) aquando da criação de uma
         instância de da classe MLModel. 
@@ -73,7 +72,7 @@ class MLModel:
         
     def __get_train_test(self) -> tuple:
         """
-        Executa o split em dados de treino e de teste.
+        Executa a divisão em dados de treino (80%) e de teste (20%).
         """
         # separação de features e labels
         df_feats = self.dataset.iloc[:, 1:-1]
@@ -97,78 +96,96 @@ class MLModel:
         # retorna 4 numpy arrays (2 arrays de features e 2 arrays de labels)
         return x_train_scaled, x_test_scaled, np.ravel(y_train), np.ravel(y_test)
     
-    """
-    def __get_feature_mask(self, estimator) -> np.array:
-        #Retorna uma máscara booleana indicando os índices das features a manter no modelo.
+    def __optimize_hyperparameters(self, mode: str) -> dict:
+        """
+        Optimiza os hiperparâmetros do modelo de machine learning.
+        
+        Parameters
+        ----------
+        :param mode: Especifica o grau da robustez que se pretende da otimização dis hiperparâmetros
+        """
+        # data
+        x_train, x_test, y_train, y_test = self.ml_data
+        # seleção da param_grid dependendo do grau de robustez que se pretende na otimização
+        hyper_l = {"RF": {"max_features": ["sqrt", "log2"], "n_estimators": [50, 100, 200]},
+                   "SVM": {"C": [0.1, 1], "kernel": ["linear", "poly"], "gamma": ["auto", "scale"]},
+                   "ANN": {"hidden_layer_sizes": [(10,), (50,)], "alpha": [0.0001, 0.001, 0.01]}}
+        hyper_r = {"RF": {"max_features": ["sqrt", "log2"], "n_estimators": [50, 100, 150, 200],
+                          "min_samples_split": [1, 2, 4], "min_samples_leaf": [1, 2, 4]},
+                   "SVM": {"C": [0.1, 1, 10, 20], "kernel": ["linear", "poly", "rbf", "sigmoid"],
+                           "degree": [3, 4], "gamma": ["auto", "scale"]},
+                   "ANN": {"hidden_layer_sizes": [(10,), (25,), (50,), (80,)], "solver": ["adam", "sgd"],
+                           "activation": ["tanh", "relu"], "alpha": [0.0001, 0.001, 0.01]}}
+        if mode == "light": param_grid = hyper_l[self.model]
+        else: param_grid = hyper_r[self.model]
+        # seleção do 'estimator' para a otimização dos hiperparâmetros
+        if self.model == "RF": estimator = RFC()
+        elif self.model == "SVM": estimator = SVC()
+        else: estimator = MLPC()
+        # determinação dos hiperparâmetros ótimos (5-fold cross validation (cv) -> default)
+        grid = GridSearchCV(estimator=estimator, param_grid=param_grid)
+        grid.fit(x_train, y_train)
+        if mode == "robust": print(f"{self.model}'s hyperparameters: {grid.best_params_}")
+        return grid.best_params_
+    
+    def __get_estimator(self, mode: str) -> Union[RFC, SVC, MLPC]:
+        """
+        Retorna um objeto 'estimator' de acordo com o modelo de machine learning especificado pelo 
+        utilizador.
+        
+        Parameters
+        ----------
+        :param mode: Especifica o grau da robustez que se pretende da otimização dis hiperparâmetros
+        """
+        # obter hiperparâmetros ótimos
+        if mode == "light": params = self.__optimize_hyperparameters("light")
+        else: params = self.__optimize_hyperparameters("robust")
+        # obter o modelo de machine learning
+        if self.model == "RF": estimator = RFC(**params)
+        elif self.model == "SVM": estimator = SVC(**params)
+        else: estimator = MLPC(**params)
+        return estimator
+    
+    def __get_feature_mask(self, estimator: Union[RFC, SVC, MLPC]) -> np.array:
+        """
+        Retorna uma máscara booleana indicando os índices das features a manter no modelo.
+        
+        Parameters
+        ----------
+        :param estimator: Um objeto 'estimator' ∈ {RFC, SVC, MLPC}
+        """
         x_train, x_test, y_train, y_test = self.ml_data
         selector = SelectFromModel(estimator=estimator) # RFECV(estimator)
         selector.fit(x_train, y_train)
         return selector.get_support() # selector.support_ if RFECV is used
-    """
-    
-    def __optimize_hyperparameters(self) -> dict:
-        """
-        Optimiza os hiperparâmetros do modelo de machine learning.
-        """
-        # data
-        x_train, x_test, y_train, y_test = self.ml_data
-        # escolha dos hiperparâmetros a otimizar dependendo do modelo a utilizar
-        if self.model == "RF":
-            param_grid = {"max_features": ["sqrt", "log2"], "n_estimators": [50, 100, 150, 200],
-                          "min_samples_split": [1, 2, 4], "min_samples_leaf": [1, 2, 4]}
-            estimator = RandomForestClassifier()
-        elif self.model == "SVM":
-            param_grid = {"C": [0.1, 1, 10, 20], "kernel": ["linear", "poly", "rbf", "sigmoid"],
-                          "gamma": ["auto", "scale"]}
-            estimator = SVC()
-        else:
-            param_grid = {"hidden_layer_sizes": [(10,), (25,), (50,), (100,)], "solver": ["adam", "sgd"],
-                          "activation": ["tanh", "relu"], "alpha": [0.0001, 0.001, 0.01]}
-            estimator = MLPClassifier()
-        # determinação dos hiperparâmetros ótimos (5-fold cross validation (cv) -> default)
-        grid = GridSearchCV(estimator=estimator, param_grid=param_grid)
-        grid.fit(x_train, y_train)
-        return grid.best_params_
-    
-    def __get_estimator(self) -> Union[RandomForestClassifier, SVC, MLPClassifier]:
-        """
-        Retorna um objeto 'estimator' de acordo com o modelo de machine learning especificado pelo 
-        utilizador.
-        """
-        # obter hiperparâmetros ótimos
-        params = self.__optimize_hyperparameters()
-        # obter o modelo de machine learning
-        if self.model == "RF": estimator = RandomForestClassifier(**params)
-        elif self.model == "SVM": estimator = SVC(**params)
-        else: estimator = MLPClassifier(**params)
-        return estimator
     
     def __build_model(self) -> None:
         """
         Retorna um modelo de machine learning construído a partir do dataset de features e labels fornecido
         pelo utilizador.
         """
+        print(f"Building {self.model} model...")
         # data from ml_dataset
         x_train, x_test, y_train, y_test = self.ml_data
-        """
+        # get first estimator with lightly optimized parameters
+        estimator1 = self.__get_estimator("light")
         # obter feature mask para a redução do número de features
-        self.mask = self.__get_feature_mask(estimator) # também é utilizado em self.predict_proteins()
+        self.mask = self.__get_feature_mask(estimator1) # também é utilizada em self.predict_proteins()
         # redifinir self.ml_data de modo a otimizar os hiperparâmetros com o novo conjunto de features
         x_train, x_test = x_train[:,self.mask], x_test[:,self.mask]
         self.ml_data = x_train, x_test, y_train, y_test
-        """
         # get estimator with optimized hyperparameters and fit the model
-        estimator = self.__get_estimator()
-        estimator.fit(x_train, y_train)
+        estimator2 = self.__get_estimator("robust")
+        estimator2.fit(x_train, y_train)
         # métricas (accuracy, precision, recall) - dados de teste
-        y_pred = estimator.predict(x_test)
+        y_pred = estimator2.predict(x_test)
         accuracy = accuracy_score(y_test, y_pred)
         precision = precision_score(y_test, y_pred, average="macro")
         recall = recall_score(y_test, y_pred, average="macro")
-        print(f"METRICS ON TESTING DATA (USING '{self.model}')\nAccuracy: {accuracy*100:.2f}% | "
-              f"Precision: {precision*100:.2f}% | Recall: {recall*100:.2f}%")
+        print(f"METRICS ON TESTING DATA\n"
+              f"Accuracy: {accuracy*100:.2f}% | Precision: {precision*100:.2f}% | Recall: {recall*100:.2f}%")
         # returns a fitted estimator (RF, SVM ou ANN)
-        return estimator
+        return estimator2
     
     @staticmethod
     def __verify_email(email: str) -> bool:
@@ -186,14 +203,14 @@ class MLModel:
     @staticmethod
     def __verify_file_name(file: str) -> bool:
         """
-        Verifca se o nome do ficheiro contendo as sequências cuja função se pretende prever inicia com
-        'txid<num>'.
+        Verifca se o nome do ficheiro que contém as sequências cuja função se pretende prever se inicia com 
+        a expressão 'txid<num>_'.
         
         Parameters
         ----------
         :param file: O nome do ficheiro que contém as sequências
         """
-        valid = "^txid[0-9]+"
+        valid = "^txid[0-9]+_"
         verify = re.search(valid, file)
         return True if verify else False
     
@@ -239,7 +256,7 @@ class MLModel:
         # normalizar os dados novos (a partir da média e stdv dos dados de treino)
         pred_data_scaled = self.scaler.transform(pred_data)
         # anotar sequências e exportar resultados para um ficheiro csv
-        y_pred_new = self.fitted_estimator.predict(pred_data_scaled) # pred_data_scaled[:,self.mask]
+        y_pred_new = self.fitted_estimator.predict(pred_data_scaled[:,self.mask])
         descrips = [rec.description for rec in SeqIO.parse(file, format="fasta")]
         predictions = pd.DataFrame({"descriptions": descrips, "prediction": y_pred_new})
         predictions.to_csv(f"{self.__get_fname()}.csv")
