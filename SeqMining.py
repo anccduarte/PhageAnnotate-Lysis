@@ -2,8 +2,8 @@
 
 from Bio import Entrez, SeqIO, Seq
 from tqdm.auto import tqdm
+from Utils import Utils
 import os
-import re
 import warnings
 
 # Ignorar warnings do Biopython (SeqFeature related)
@@ -15,7 +15,7 @@ class SeqMining:
     Permite a recolha de sequências de DNA na base de dados 'Nucleotide' do NCBI.
     """
     
-    def __init__(self, email: str, taxid: str, terms: list, num_ids: int, negatives: int = 0) -> None:
+    def __init__(self, email: str, taxid: str, terms: list, num_ids: int, negatives: bool = False) -> None:
         
         """
         Inicializa uma instâcia da classe SeqMining.
@@ -32,8 +32,8 @@ class SeqMining:
         # email - assert type and value
         msg_email_1 = "O parâmetro 'email' deve ser do tipo 'str'."
         if type(email) is not str: raise TypeError(msg_email_1)
-        msg_email_2 = "O endereço de email inserido não é válido."
-        if not SeqMining.__verify_email(email): raise ValueError(msg_email_2)
+        msg_email_2 = "O endereço de email introduzido não é válido."
+        if not Utils(email=email).email: raise ValueError(msg_email_2)
         
         # taxid - assert type and value
         msg_taxid_1 = "O parâmetro 'taxid' deve ser do tipo 'str'."
@@ -58,10 +58,8 @@ class SeqMining:
         if num_ids < 1 or num_ids > 20000: raise ValueError(msg_num_ids_2)
         
         # negatives - assert type and value
-        msg_negatives_1 = "O parâmetro 'negatives' deve ser do tipo 'int'."
-        if type(negatives) is not int: raise TypeError(msg_negatives_1)
-        msg_negatives_2 = "O parâmetro 'negatives' apenas toma os valores 0 ou 1."
-        if negatives not in [0,1]: raise ValueError(msg_negatives_2)
+        msg_negatives_1 = "O parâmetro 'negatives' deve ser do tipo 'bool'."
+        if type(negatives) is not bool: raise TypeError(msg_negatives_1)
         
         # instance attributes
         self.email = email
@@ -72,19 +70,6 @@ class SeqMining:
         
         try: self.sci_name = self.__get_sci_name()
         except: raise ValueError(f"O identificador introduzido ('{taxid}') não se encontra atribuído.")
-        
-    @staticmethod
-    def __verify_email(email: str) -> bool:
-        """
-        Verifica se o endereço de email introduzido pelo utilizador é ou não válido.
-        
-        Parameters
-        ----------
-        :param email: O endereço de email a validar
-        """
-        valid = "^[a-zA-Z0-9]+[-._]?[a-zA-Z0-9]+[@][a-zA-Z0-9]+[.]?[a-zA-Z0-9]+[.]\w{2,3}$"
-        verify = re.search(valid, email)
-        return True if verify else False
     
     def __get_sci_name(self) -> str:
         """
