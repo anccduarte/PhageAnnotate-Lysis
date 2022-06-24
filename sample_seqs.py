@@ -27,10 +27,10 @@ def get_new_file(file, file_seqs, wanted_seqs, scale):
     return True
 
 
-# Ficheiros sobre os quais se pretende efetuar a escolha aleatória de sequências
+# Ficheiros sobre os quais se pretende efetuar a escolha aleatória de sequências (3x negativos)
 files = ["txid28883_proteins_2500_filt.fasta", "txid28883_endolysins_6000_filt.fasta",
          "txid28883_holins_6000_filt.fasta", "txid28883_negative_proteins_4000_filt.fasta",
-         "txid28883_negative_proteins_4000_filt.fasta"]
+         "txid28883_negative_proteins_4000_filt.fasta", "txid28883_negative_proteins_4000_filt.fasta"]
 
 # Determinar o número de sequências em cada um dos ficheiros fasta (tup -> (file, counts))
 file_tups = [(file, get_num_seqs(file)) for file in files]
@@ -38,8 +38,8 @@ file_tups = [(file, get_num_seqs(file)) for file in files]
 # Retirar da lista 'files_with_counts' o ficheiro cuja contagem é mais baixa
 min_file, min_counts = file_tups.pop(file_tups.index(min(file_tups, key = lambda x: x[1])))
 
-# Scale number of sequences (4 labels vs. 2 labels)
-scale = [1, 1, 1, 3]
+# Scale number of sequences
+scale = [1, 1, 1, 3, 6] # negatives are scaled 1x, 3x and 6x
 
 # Geração dos novos ficheiros fasta contendo sequências escolhidas de forma aleatória
 generate_files = [get_new_file(file, counts, min_counts, sc) for (file, counts), sc in zip(file_tups, scale)]
