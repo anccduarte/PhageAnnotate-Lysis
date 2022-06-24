@@ -3,9 +3,9 @@
 from Bio import Entrez, SeqIO, Seq
 from Bio.SeqUtils.ProtParam import ProteinAnalysis
 from propy import PyPro
+from Utils import Utils
 import os
 import pandas as pd
-import re
 import warnings
 
 # Ignorar warnings do Biopython (related to translation)
@@ -32,8 +32,8 @@ class MLDataSet:
         # email - assert type and value
         msg_email_1 = "O parâmetro 'email' deve ser do tipo 'str'."
         if type(email) is not str: raise TypeError(msg_email_1)
-        msg_email_2 = "O endereço de email inserido não é válido."
-        if not MLDataSet.__verify_email(email): raise ValueError(msg_email_2)
+        msg_email_2 = "O endereço de email introduzido não é válido."
+        if not Utils(email=email).email: raise ValueError(msg_email_2)
         
         # datasets - assert types and values
         msg_datasets_1 = "O parâmetro 'datasets' deve ser do tipo 'list'."
@@ -46,6 +46,8 @@ class MLDataSet:
         if any(type(el) is not str for ds in datasets for el in ds): raise TypeError(msg_datasets_4)
         msg_datasets_5 = "Os elementos presentes em cada dataset (file, label) devem ter dimensão superior a 0."
         if any(len(el.strip()) < 1 for ds in datasets for el in ds): raise ValueError(msg_datasets_5)
+        msg_datasets_6 = "Os nomes dos ficheiros presentes em 'datasets' devem iniciar-se com 'txid<num>_'."
+        if any(not Utils(txid_file=file).txid_file for file,_ in datasets): raise ValueError(msg_datasets_6)
         
         # assert existance of file in cwd
         for file,_ in datasets:
@@ -57,19 +59,6 @@ class MLDataSet:
         self.email = email
         self.datasets = datasets
         self.ml_dataset = self.__build_dataset()
-        
-    @staticmethod
-    def __verify_email(email: str) -> bool:
-        """
-        Verifica se o endereço de email introduzido pelo utilizador é ou não válido.
-        
-        Parameters
-        ----------
-        :param email: O endereço de email a validar
-        """
-        valid = "^[a-zA-Z0-9]+[-._]?[a-zA-Z0-9]+[@][a-zA-Z0-9]+[.]?[a-zA-Z0-9]+[.]\w{2,3}$"
-        verify = re.search(valid, email)
-        return True if verify else False
         
     @staticmethod
     def __nuc_composition(seq: Seq.Seq) -> list:
@@ -178,15 +167,6 @@ class MLDataSet:
         """
         DesObject = PyPro.GetProDes(seq)
         return [feat for feat in DesObject.GetCTD().values()]
-    
-    """
-    @staticmethod
-    def __dipeptide_composition(seq: Seq.Seq) -> list:
-        aminoacids = "ACDEFGHIKLMNPQRSTVWY"
-        dipeptides = [aa1 + aa2 for aa1 in aminoacids for aa2 in aminoacids]
-        dcs = [round(len(re.findall(dp, str(seq)))/(len(seq)-1), 6) for dp in dipeptides]
-        return dcs
-    """
     
     @staticmethod
     def __dipeptide_composition(seq: Seq.Seq) -> list:
