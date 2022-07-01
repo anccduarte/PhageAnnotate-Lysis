@@ -99,7 +99,7 @@ class MLModel:
         ----------
         :param mode: Especifica o grau de robustez que se pretende na otimização dos hiperparâmetros
         """
-        # data
+        # dados de treino e de teste
         x_train, x_test, y_train, y_test = self.__ml_data
         # seleção da param_grid dependendo do grau de robustez que se pretende na otimização
         dfs, be = "decision_function_shape", "base_estimator__"
@@ -222,7 +222,7 @@ class MLModel:
         data = MLDataSet(email, [(file, "unknown")])
         os.remove("ml_dataset_unk.csv")
         to_predict = data.ml_dataset.iloc[:, :-1]
-        # normalizar os dados novos (a partir da média e stdv dos dados de treino)
+        # normalizar os dados novos (a partir da média e desvio-padrão dos dados de treino)
         to_predict_scaled = self.__scaler.transform(to_predict)
         # anotar sequências e exportar resultados para um ficheiro csv
         y_pred = self.__fitted_estimator.predict(to_predict_scaled[:,self.__mask])
