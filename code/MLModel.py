@@ -72,7 +72,7 @@ class MLModel:
         # separação de features e labels
         df_feats = self.__dataset.iloc[:, 1:-1]
         df_labels = self.__dataset.iloc[:, -1]
-        # separação em dados de teste e treino (shuffle ???)
+        # separação em dados de teste e treino (radom_state controls the shuffling applied to the data)
         x_trn, x_tst, y_trn, y_tst = train_test_split(df_feats, df_labels, train_size=0.8, random_state=42)
         # retorna 4 numpy arrays (2 arrays de features e 2 arrays de labels)
         return x_trn, x_tst, y_trn, y_tst
@@ -91,7 +91,7 @@ class MLModel:
         # retorna 4 numpy arrays (2 arrays de features e 2 arrays de labels)
         return x_train_scaled, x_test_scaled, np.ravel(y_train), np.ravel(y_test)
     
-    def __optimize_hyperparameters(self, mode: str) -> dict: # <--------------------
+    def __optimize_hyperparameters(self, mode: str) -> dict:
         """
         Optimiza os hiperparâmetros do modelo de machine learning.
         
@@ -135,7 +135,7 @@ class MLModel:
         params = self.__optimize_hyperparameters(mode)
         # obter o modelo de machine learning
         if self.model == "RF": estimator = RFC(**params, random_state=42)
-        # SVC -> # random_state ignored when 'probability' is False
+        # SVC -> random_state ignored when 'probability' is False
         elif self.model == "SVM": estimator = SVC(**params)
         return estimator
     
@@ -169,7 +169,7 @@ class MLModel:
         # redifinir self.ml_data de modo a otimizar os hiperparâmetros com o novo conjunto de features
         x_train, x_test = x_train[:,self.__mask], x_test[:,self.__mask]
         self.__ml_data = x_train, x_test, y_train, y_test
-        # get estimator with optimized hyperparameters and fit the model
+        # get estimator with robustly optimized hyperparameters and fit the model
         estimator2 = self.__get_estimator("robust")
         estimator2.fit(x_train, y_train)
         # confusion matrix e métricas (accuracy, precision, recall) - dados de teste
